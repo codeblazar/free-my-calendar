@@ -14,13 +14,13 @@ ics_filename = os.getenv("ICS_FILENAME", "outlook_calendar_export.ics")
 calendar_name = os.getenv("CALENDAR_NAME", "Outlook Work Calendar")
 calendar_description = os.getenv("CALENDAR_DESCRIPTION", "Exported from Microsoft Outlook")
 
-def generate_event_uid(subject, start_time, location=""):
-    """Generate a unique identifier for each event based on its content"""
-    # Create a unique string from event details
-    unique_string = f"{subject}_{start_time}_{location}".lower()
+def generate_event_uid(subject, start_time, end_time=""):
+    """Generate a unique identifier for each event based on its content - matches sync_tracker"""
+    # Create a unique string from event details (matching sync_tracker format)
+    unique_string = f"{subject}|{start_time}|{end_time}"
     # Generate a hash for the UID
-    uid_hash = hashlib.md5(unique_string.encode()).hexdigest()
-    return f"{uid_hash}@outlook-export"
+    uid_hash = hashlib.md5(unique_string.encode('utf-8')).hexdigest()
+    return f"{uid_hash}@outlooksync.local"
 
 def csv_to_ics(csv_file, ics_file):
     with open(csv_file, newline='', encoding='utf-8') as f:
@@ -28,23 +28,30 @@ def csv_to_ics(csv_file, ics_file):
         events = list(reader)
 
     def format_ics_datetime(dt_str):
-        # Try additional ISO formats
+        """Convert Outlook datetime to ICS format, preserving local timezone"""
+        # Outlook typically exports in format: "2025-09-08 14:30:00" (local time)
         for fmt in (
-            "%Y-%m-%d %H:%M:%S%z",    # e.g., 2025-09-02 13:30:00+00:00
-            "%Y-%m-%d %H:%M:%S",      # e.g., 2025-09-02 13:30:00
-            "%m/%d/%Y %I:%M:%S %p",   # fallback, if others exist
-            "%Y-%m-%dT%H:%M:%S%z"
+            "%Y-%m-%d %H:%M:%S",      # Standard Outlook export format
+            "%m/%d/%Y %I:%M:%S %p",   # Alternative format
+            "%Y-%m-%d %H:%M:%S%z",    # With timezone
+            "%Y-%m-%dT%H:%M:%S%z",    # ISO format with timezone
+            "%Y-%m-%dT%H:%M:%S"       # ISO format without timezone
         ):
             try:
-                # Remove colon from timezone if present (to match %z pattern)
-                if '+' in dt_str:
+                if '+' in dt_str and fmt.endswith('%z'):
+                    # Handle timezone offset format
                     dt_left, tz = dt_str.split('+')
                     tz = tz.replace(':','')
                     dt_str2 = f"{dt_left}+{tz}"
                 else:
                     dt_str2 = dt_str
+                
                 dt = datetime.strptime(dt_str2, fmt)
-                return dt.strftime('%Y%m%dT%H%M%SZ')
+                
+                # Convert to ICS format (keep as local time, not UTC)
+                # This prevents the timezone shift that causes wrong times
+                return dt.strftime('%Y%m%dT%H%M%S')
+                
             except Exception:
                 continue
         raise ValueError(f"Unrecognized date format: {dt_str}")
@@ -61,11 +68,11 @@ def csv_to_ics(csv_file, ics_file):
         
         for event in events:
             try:
-                # Generate unique UID for each event
+                # Generate unique UID for each event (matching sync_tracker format)
                 event_uid = generate_event_uid(
                     event.get('Subject', ''), 
                     event.get('Start', ''), 
-                    event.get('Location', '')
+                    event.get('End', '')  # Use End time instead of Location for consistency
                 )
                 
                 # Get current timestamp for created/modified dates

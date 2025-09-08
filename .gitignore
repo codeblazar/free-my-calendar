@@ -125,6 +125,9 @@ dmypy.json
 # Project-specific files
 outlook_calendar_export.csv
 outlook_calendar_export.ics
+outlook_calendar_export_deletions.ics
+sync_history.json
+sync_log_*.txt
 *.log
 calendar_sync_scheduler.log
 

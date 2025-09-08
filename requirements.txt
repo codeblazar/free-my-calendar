@@ -1,4 +1,3 @@
-pywin32
-selenium
-python-dotenv
-schedule
+pywin32>=306
+python-dotenv>=1.0.0
+psutil>=5.9.0
